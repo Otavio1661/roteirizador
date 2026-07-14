@@ -827,16 +827,7 @@ function show2Opt(r) {
 
     document.querySelectorAll('#point-list li').forEach(l => l.classList.remove('active', 'visited'));
 
-    if (r.usedRoads) {
-      await drawRealRoads(r);
-    } else {
-      // fallback: polyline reta
-      const coords = r.optOrder.map(i => latlng(r.pts[i]));
-      const layer  = L.polyline(coords, { ...S_FINAL }).addTo(map);
-      roadLayers.push(layer);
-      map.fitBounds(layer.getBounds(), { padding: [40, 40] });
-      finishAnimation(r);
-    }
+    await drawRealRoads(r);
   }, 400);
 }
 
@@ -845,23 +836,29 @@ async function drawRealRoads(r) {
   const { pts, optOrder } = r;
   const n = optOrder.length - 1;
 
-  setStepInfo(`<div class="si-phase">Traçando estradas reais</div>Buscando ${n} trechos em paralelo…`);
+  setStepInfo(`<div class="si-phase">Traçando estradas reais</div>Buscando rota (${n} paradas)…`);
 
-  // Todos os trechos ao mesmo tempo — muito mais rápido que sequencial
-  const fetches = [];
-  for (let i = 0; i < n; i++)
-    fetches.push(fetchRoadPath(pts[optOrder[i]], pts[optOrder[i+1]]));
+  // Uma única chamada OSRM com todos os waypoints — funciona para qualquer N
+  const coords = optOrder.map(i => `${pts[i].lng.toFixed(6)},${pts[i].lat.toFixed(6)}`).join(';');
 
-  const paths = await Promise.all(fetches);
-  if (drawGeneration !== gen) return;
+  try {
+    const res  = await fetch(`${OSRM}/route/v1/driving/${coords}?geometries=geojson&overview=full`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (drawGeneration !== gen) return;
+    if (!data.routes?.[0]) throw new Error('sem rota');
 
-  const bounds = [];
-  paths.forEach(path => {
+    const path = data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]);
     roadLayers.push(L.polyline(path, { ...S_FINAL }).addTo(map));
-    bounds.push(...path);
-  });
+    if (path.length) map.fitBounds(L.latLngBounds(path), { padding: [40, 40] });
+  } catch (e) {
+    if (drawGeneration !== gen) return;
+    showToast('OSRM indisponível — usando linha reta: ' + e.message);
+    const path = optOrder.map(i => latlng(pts[i]));
+    roadLayers.push(L.polyline(path, { ...S_FINAL }).addTo(map));
+    map.fitBounds(L.latLngBounds(path), { padding: [40, 40] });
+  }
 
-  if (bounds.length) map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40] });
   finishAnimation(r);
 }
 
