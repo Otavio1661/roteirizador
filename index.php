@@ -224,6 +224,29 @@
       animation: slideIn .2s ease;
     }
     @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } }
+
+    .map-search-control {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(13,15,26,.92);
+      border: 1px solid #1e2240; border-radius: 9px;
+      padding: 7px 11px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+    }
+    .map-search-control input {
+      background: transparent; border: none; outline: none;
+      color: #dde1f0; font-size: .82rem; width: 200px;
+    }
+    .map-search-control input::placeholder { color: #4b5563; }
+    .map-search-control button {
+      background: none; border: none; cursor: pointer;
+      color: #818cf8; font-size: 1rem; padding: 0; line-height: 1;
+    }
+    .map-search-control button:hover { color: #c7d2fe; }
+
+    .btn-ghost.active {
+      background: #1e2d50; color: #818cf8; border: 1px solid #818cf8;
+    }
+    .map-crosshair, .map-crosshair .leaflet-grab { cursor: crosshair !important; }
   </style>
 </head>
 <body>
@@ -254,6 +277,7 @@
       <button class="btn btn-primary" id="btn-optimize" disabled>▶ Otimizar Rota</button>
       <button class="btn btn-ghost"   id="btn-demo">Demo 6 cidades BR</button>
       <button class="btn btn-ghost"   id="btn-demo20">Demo 20 cidades BR</button>
+      <button class="btn btn-ghost"   id="btn-click-add">📍 Clique no mapa para adicionar</button>
       <div class="section-title" style="margin-top:10px;margin-bottom:6px">Teste de Escala</div>
       <button class="btn btn-ghost"   id="btn-300s">300 pts — Curta <small>(&lt;25 km)</small></button>
       <button class="btn btn-ghost"   id="btn-300m">300 pts — Média <small>(&lt;350 km)</small></button>
@@ -313,6 +337,19 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   maxZoom: 19
 }).addTo(map);
+
+// Controle de busca flutuante no mapa
+const MapSearchControl = L.Control.extend({
+  onAdd() {
+    const div = L.DomUtil.create('div', 'map-search-control');
+    div.innerHTML = `<input id="map-search-input" type="text" placeholder="Buscar local no mapa…" autocomplete="off">
+      <button id="map-search-btn" title="Buscar">🔍</button>`;
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+    return div;
+  }
+});
+new MapSearchControl({ position: 'topright' }).addTo(map);
 
 // ─────────────────────────────────────────────────────
 //  MARKER FACTORY
@@ -964,6 +1001,79 @@ document.getElementById('btn-300l').addEventListener('click',
   () => loadTestPoints(300, -15.00, -49.00, 1800, 'Nacional — Brasil'));
 
 // ─────────────────────────────────────────────────────
+//  BUSCA NO MAPA (navega sem adicionar ponto)
+// ─────────────────────────────────────────────────────
+async function mapSearch() {
+  const input = document.getElementById('map-search-input');
+  const q = input.value.trim();
+  if (!q) return;
+  input.disabled = true;
+  try {
+    const geo = await geocode(q);
+    map.flyTo([geo.lat, geo.lng], 13, { duration: 1 });
+  } catch(e) {
+    showToast('Local não encontrado: ' + q);
+  } finally {
+    input.disabled = false;
+    input.select();
+  }
+}
+
+// ─────────────────────────────────────────────────────
+//  CLIQUE NO MAPA PARA ADICIONAR PONTO
+// ─────────────────────────────────────────────────────
+let clickToAdd = false;
+
+function setClickToAdd(active) {
+  clickToAdd = active;
+  const btn = document.getElementById('btn-click-add');
+  btn.classList.toggle('active', active);
+  btn.textContent = active ? '✕ Cancelar adição no mapa' : '📍 Clique no mapa para adicionar';
+  map.getContainer().classList.toggle('map-crosshair', active);
+}
+
+async function reverseGeocode(lat, lng) {
+  const res  = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+    { headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' } }
+  );
+  const data = await res.json();
+  const display  = data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  const cityName = (data.address?.city || data.address?.town ||
+                    data.address?.village || data.address?.suburb || '').trim()
+                || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  return { display, cityName };
+}
+
+map.on('click', async e => {
+  if (!clickToAdd || animRunning) return;
+  const { lat, lng } = e.latlng;
+
+  const idx    = points.length;
+  const name   = `P${idx + 1}`;
+  const color  = PALETTE[idx % PALETTE.length];
+  const marker = L.marker([lat, lng], { icon: makeIcon(name, color) })
+    .addTo(map)
+    .bindPopup(`<b>${name}</b><br><small>Buscando endereço…</small>`);
+
+  const coords = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  points.push({ id: idx, name, address: coords, cityName: name, lat, lng, marker });
+  clearRoute();
+  updateUI();
+
+  try {
+    const geo = await reverseGeocode(lat, lng);
+    const p   = points.find(p => p.id === idx);
+    if (p) {
+      p.address  = geo.display;
+      p.cityName = geo.cityName;
+      marker.setPopupContent(`<b>${name}</b><br><small>${geo.display}</small>`);
+      updateUI();
+    }
+  } catch { /* mantém coordenadas se reverse geocoding falhar */ }
+});
+
+// ─────────────────────────────────────────────────────
 //  EVENTS
 // ─────────────────────────────────────────────────────
 document.getElementById('btn-add').addEventListener('click', () =>
@@ -972,6 +1082,13 @@ document.getElementById('btn-add').addEventListener('click', () =>
 document.getElementById('addr-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') addPointByAddress(e.target.value);
 });
+
+document.getElementById('btn-click-add').addEventListener('click',
+  () => setClickToAdd(!clickToAdd));
+
+document.getElementById('map-search-btn').addEventListener('click', mapSearch);
+document.getElementById('map-search-input').addEventListener('keydown',
+  e => { if (e.key === 'Enter') mapSearch(); });
 
 document.getElementById('btn-clear').addEventListener('click', clearAll);
 
