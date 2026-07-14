@@ -254,6 +254,10 @@
       <button class="btn btn-primary" id="btn-optimize" disabled>▶ Otimizar Rota</button>
       <button class="btn btn-ghost"   id="btn-demo">Demo 6 cidades BR</button>
       <button class="btn btn-ghost"   id="btn-demo20">Demo 20 cidades BR</button>
+      <div class="section-title" style="margin-top:10px;margin-bottom:6px">Teste de Escala</div>
+      <button class="btn btn-ghost"   id="btn-300s">300 pts — Curta <small>(&lt;25 km)</small></button>
+      <button class="btn btn-ghost"   id="btn-300m">300 pts — Média <small>(&lt;350 km)</small></button>
+      <button class="btn btn-ghost"   id="btn-300l">300 pts — Longa <small>(Brasil)</small></button>
       <button class="btn btn-danger"  id="btn-clear">Limpar Tudo</button>
     </div>
 
@@ -486,6 +490,35 @@ function twoOpt(order, M) {
 }
 
 // ─────────────────────────────────────────────────────
+//  2-OPT COM LIMITE DE TEMPO (para conjuntos grandes)
+// ─────────────────────────────────────────────────────
+function twoOptTimeLimited(order, M, maxMs = 3000) {
+  let route    = order.slice(0, -1);
+  const n      = route.length;
+  let improved = true;
+  const deadline = performance.now() + maxMs;
+
+  while (improved && performance.now() < deadline) {
+    improved = false;
+    for (let i = 0; i < n - 1; i++) {
+      if (performance.now() > deadline) break;
+      for (let j = i + 2; j < n; j++) {
+        if (i === 0 && j === n - 1) continue;
+        const a = route[i], b = route[i+1], c = route[j], d = route[(j+1)%n];
+        if (M[a][c] + M[b][d] < M[a][b] + M[c][d] - 1e-10) {
+          let lo = i+1, hi = j;
+          while (lo < hi) { [route[lo], route[hi]] = [route[hi], route[lo]]; lo++; hi--; }
+          improved = true;
+        }
+      }
+    }
+  }
+
+  route.push(route[0]);
+  return { order: route, distance: route.reduce((s,v,i) => i === 0 ? s : s + M[route[i-1]][v], 0) };
+}
+
+// ─────────────────────────────────────────────────────
 //  POINT MANAGEMENT
 // ─────────────────────────────────────────────────────
 async function addPointByAddress(address) {
@@ -589,23 +622,35 @@ document.getElementById('btn-optimize').addEventListener('click', async () => {
   setStepInfo('<div class="si-phase">Aguarde</div>Buscando distâncias reais por estrada…');
   document.getElementById('step-info').classList.add('show');
 
-  const pts = points.slice();
-  let M, D, usedRoads = true;
+  const pts     = points.slice();
+  const isLarge = pts.length > 50;
+  let M, D, usedRoads;
 
-  try {
-    ({ M, D } = await buildRoadMatrix(pts));
-  } catch(e) {
-    showToast('OSRM indisponível — usando linha reta: ' + e.message);
-    M       = buildDistMatrix(pts);
-    D       = null;
+  if (isLarge) {
+    // Haversine puro — sem rede, sem limites de tamanho
+    btn.innerHTML = '<span class="spinner"></span> Calculando matriz…';
+    M         = buildDistMatrix(pts);
+    D         = null;
     usedRoads = false;
+  } else {
+    btn.innerHTML = '<span class="spinner"></span> Calculando estradas…';
+    usedRoads = true;
+    try {
+      ({ M, D } = await buildRoadMatrix(pts));
+    } catch(e) {
+      showToast('OSRM indisponível — usando linha reta: ' + e.message);
+      M = buildDistMatrix(pts); D = null; usedRoads = false;
+    }
   }
 
   btn.disabled  = false;
   btn.innerHTML = '▶ Otimizar Rota';
 
   const nn  = nearestNeighbor(pts, M);
-  const opt = twoOpt(nn.order, M);
+  // 2-Opt com limite de tempo para conjuntos grandes (evita travar o browser)
+  const opt = isLarge
+    ? twoOptTimeLimited(nn.order, M, 3000)
+    : twoOpt(nn.order, M);
 
   // Duração total da rota otimizada
   let totalDuration = 0;
@@ -888,6 +933,38 @@ function loadDemo(cities) {
 
 document.getElementById('btn-demo').addEventListener('click',   () => loadDemo(DEMO_CITIES_6));
 document.getElementById('btn-demo20').addEventListener('click', () => loadDemo(DEMO_CITIES_20));
+
+// ─────────────────────────────────────────────────────
+//  GERAÇÃO ALEATÓRIA DE PONTOS
+// ─────────────────────────────────────────────────────
+function randomInRadius(centerLat, centerLng, radiusKm) {
+  const angle = Math.random() * 2 * Math.PI;
+  const dist  = Math.sqrt(Math.random()) * radiusKm; // distribuição uniforme na área
+  const dLat  = (dist * Math.cos(angle)) / 111.32;
+  const dLng  = (dist * Math.sin(angle)) / (111.32 * Math.cos(centerLat * Math.PI / 180));
+  return { lat: centerLat + dLat, lng: centerLng + dLng };
+}
+
+function loadTestPoints(n, centerLat, centerLng, radiusKm, areaLabel) {
+  if (animRunning) return;
+  clearAll();
+  for (let i = 0; i < n; i++) {
+    const { lat, lng } = randomInRadius(centerLat, centerLng, radiusKm);
+    const name  = `P${i + 1}`;
+    const color = PALETTE[i % PALETTE.length];
+    const marker = L.marker([lat, lng], { icon: makeIcon(name, color, 18) }).addTo(map);
+    points.push({ id:i, name, address:areaLabel, cityName:`Ponto ${i+1}`, lat, lng, marker });
+  }
+  updateUI();
+  map.fitBounds(L.featureGroup(points.map(p => p.marker)).getBounds(), { padding:[40, 40] });
+}
+
+document.getElementById('btn-300s').addEventListener('click',
+  () => loadTestPoints(300, -23.55, -46.63,   25, 'Área urbana — São Paulo'));
+document.getElementById('btn-300m').addEventListener('click',
+  () => loadTestPoints(300, -16.00, -49.50,  350, 'Regional — Centro-Oeste'));
+document.getElementById('btn-300l').addEventListener('click',
+  () => loadTestPoints(300, -15.00, -49.00, 1800, 'Nacional — Brasil'));
 
 // ─────────────────────────────────────────────────────
 //  EVENTS
