@@ -571,6 +571,49 @@ function twoOptTimeLimited(order, M, maxMs = 3000) {
 }
 
 // ─────────────────────────────────────────────────────
+//  OR-OPT — relocação de nós (corrige "nó fora do lugar")
+//  Para cada ponto, tenta removê-lo e reinseri-lo onde custa menos.
+//  Pega casos que o 2-Opt não consegue: vizinhos visitados longe um do outro.
+// ─────────────────────────────────────────────────────
+function orOpt(order, M) {
+  let route = order.slice(0, -1);
+  const n   = route.length;
+  let improved = true;
+
+  while (improved) {
+    improved = false;
+    outer: for (let i = 0; i < n; i++) {
+      const iPrev = (i - 1 + n) % n;
+      const iNext = (i + 1) % n;
+      // economia de remover route[i] de onde está
+      const saving = M[route[iPrev]][route[i]] + M[route[i]][route[iNext]]
+                   - M[route[iPrev]][route[iNext]];
+
+      for (let j = 0; j < n; j++) {
+        if (j === iPrev || j === i) continue;
+        const jNext = (j + 1) % n;
+        if (jNext === i) continue;
+        // custo de inserir route[i] entre route[j] e route[jNext]
+        const cost = M[route[j]][route[i]] + M[route[i]][route[jNext]]
+                   - M[route[j]][route[jNext]];
+
+        if (saving - cost > 1e-10) {
+          const node = route[i];
+          route.splice(i, 1);
+          const ins = j > i ? j - 1 : j;
+          route.splice(ins + 1, 0, node);
+          improved = true;
+          break outer;
+        }
+      }
+    }
+  }
+
+  route.push(route[0]);
+  return { order: route, distance: route.reduce((s, v, i) => i === 0 ? s : s + M[route[i-1]][v], 0) };
+}
+
+// ─────────────────────────────────────────────────────
 //  POINT MANAGEMENT
 // ─────────────────────────────────────────────────────
 async function addPointByAddress(address) {
@@ -698,11 +741,12 @@ document.getElementById('btn-optimize').addEventListener('click', async () => {
   btn.disabled  = false;
   btn.innerHTML = '▶ Otimizar Rota';
 
-  const nn  = nearestNeighbor(pts, M);
-  // 2-Opt com limite de tempo para conjuntos grandes (evita travar o browser)
-  const opt = isLarge
-    ? twoOptTimeLimited(nn.order, M, 3000)
+  const nn      = nearestNeighbor(pts, M);
+  // 2-Opt + Or-Opt: 2-Opt desfaz cruzamentos, Or-Opt reloca nós fora do lugar
+  const twoOptResult = isLarge
+    ? twoOptTimeLimited(nn.order, M, 2500)
     : twoOpt(nn.order, M);
+  const opt = isLarge ? twoOptResult : orOpt(twoOptResult.order, M);
 
   // Duração total da rota otimizada
   let totalDuration = 0;
