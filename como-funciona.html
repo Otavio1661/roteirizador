@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Como Funciona — Otimizador de Rotas</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0d0f1a;
+      color: #dde1f0;
+      line-height: 1.75;
+    }
+
+    .page {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 60px 32px 100px;
+    }
+
+    /* ── Cabeçalho ── */
+    .doc-header {
+      border-bottom: 2px solid #1e2240;
+      padding-bottom: 32px;
+      margin-bottom: 52px;
+    }
+    .doc-header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #818cf8;
+      letter-spacing: -.5px;
+      margin-bottom: 8px;
+    }
+    .doc-header .subtitle {
+      font-size: .95rem;
+      color: #6b7280;
+    }
+    .doc-header .tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+    .tag {
+      background: #1a1e35;
+      border: 1px solid #2d3260;
+      border-radius: 99px;
+      padding: 3px 12px;
+      font-size: .75rem;
+      color: #818cf8;
+      font-weight: 600;
+    }
+
+    /* ── Seções ── */
+    section { margin-bottom: 56px; }
+
+    h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #c7d2fe;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2 .num {
+      background: #818cf8;
+      color: #fff;
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .8rem;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #a5b4fc;
+      margin: 24px 0 10px;
+    }
+
+    p { color: #9ca3af; margin-bottom: 14px; }
+    p strong { color: #dde1f0; }
+
+    /* ── Caixa de destaque ── */
+    .box {
+      background: #13162a;
+      border: 1px solid #1e2240;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin: 20px 0;
+    }
+    .box.purple { border-left: 3px solid #818cf8; }
+    .box.yellow { border-left: 3px solid #fbbf24; }
+    .box.green  { border-left: 3px solid #34d399; }
+    .box.red    { border-left: 3px solid #f87171; }
+
+    .box-title {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .box.purple .box-title { color: #818cf8; }
+    .box.yellow .box-title { color: #fbbf24; }
+    .box.green  .box-title { color: #34d399; }
+    .box.red    .box-title { color: #f87171; }
+
+    /* ── Código ── */
+    pre, code {
+      font-family: 'Cascadia Code', 'Consolas', monospace;
+      font-size: .82rem;
+    }
+    pre {
+      background: #0a0c15;
+      border: 1px solid #1e2240;
+      border-radius: 8px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      margin: 16px 0;
+      color: #c7d2fe;
+      line-height: 1.6;
+    }
+    code { background: #1a1e35; padding: 1px 6px; border-radius: 4px; color: #a5b4fc; font-size: .85rem; }
+    .kw  { color: #818cf8; }
+    .fn  { color: #34d399; }
+    .cm  { color: #4b5563; font-style: italic; }
+    .nm  { color: #fbbf24; }
+    .st  { color: #fb923c; }
+
+    /* ── Tabela ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .85rem;
+      margin: 16px 0;
+    }
+    th {
+      background: #13162a;
+      color: #818cf8;
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid #1e2240;
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #13162a;
+      color: #9ca3af;
+    }
+    td strong { color: #dde1f0; }
+    tr:hover td { background: #13162a; }
+
+    /* ── Diagrama de passos ── */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 20px 0;
+    }
+    .step {
+      display: flex;
+      gap: 16px;
+      position: relative;
+    }
+    .step-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .step-dot {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #818cf8;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: .82rem; color: #fff;
+      flex-shrink: 0;
+      z-index: 1;
+    }
+    .step-line {
+      width: 2px;
+      flex: 1;
+      background: #1e2240;
+      margin: 4px 0;
+      min-height: 20px;
+    }
+    .step:last-child .step-line { display: none; }
+    .step-body {
+      padding: 4px 0 28px;
+    }
+    .step-title { font-weight: 700; color: #c7d2fe; margin-bottom: 4px; }
+    .step-desc  { font-size: .85rem; color: #9ca3af; }
+
+    /* ── Exemplo visual de algoritmo ── */
+    .algo-vis {
+      background: #0a0c15;
+      border: 1px solid #1e2240;
+      border-radius: 10px;
+      padding: 20px;
+      font-family: monospace;
+      font-size: .8rem;
+      color: #9ca3af;
+      margin: 16px 0;
+      line-height: 1.9;
+    }
+    .algo-vis .hl  { color: #fbbf24; font-weight: 700; }
+    .algo-vis .ok  { color: #34d399; font-weight: 700; }
+    .algo-vis .idx { color: #818cf8; }
+    .algo-vis .arr { color: #818cf8; }
+
+    /* ── Comparação ── */
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+    @media (max-width: 600px) { .compare { grid-template-columns: 1fr; } }
+
+    /* ── Rodapé ── */
+    footer {
+      border-top: 1px solid #1e2240;
+      padding-top: 28px;
+      font-size: .8rem;
+      color: #4b5563;
+      text-align: center;
+    }
+    footer a { color: #818cf8; text-decoration: none; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Cabeçalho -->
+  <div class="doc-header">
+    <h1>Como Funciona o Otimizador de Rotas</h1>
+    <p class="subtitle">Explicação completa do algoritmo — da matriz de distâncias até o caminho final no mapa</p>
+    <div class="tags">
+      <span class="tag">Nearest Neighbor</span>
+      <span class="tag">2-Opt</span>
+      <span class="tag">OSRM</span>
+      <span class="tag">Problema do Caixeiro Viajante</span>
+      <span class="tag">JavaScript</span>
+    </div>
+  </div>
+
+  <!-- 0. O problema -->
+  <section>
+    <h2><span class="num">0</span> O Problema que o Sistema Resolve</h2>
+
+    <p>
+      Imagine que você precisa visitar <strong>N lugares diferentes</strong> e voltar ao ponto de partida.
+      Qual é a ordem de visita que percorre a menor distância total?
+    </p>
+    <p>
+      Isso se chama <strong>Problema do Caixeiro Viajante</strong> (TSP — <em>Traveling Salesman Problem</em>).
+      É um dos problemas mais famosos da ciência da computação, e o motivo é simples:
+    </p>
+
+    <div class="box yellow">
+      <div class="box-title">Por que é difícil?</div>
+      <p style="margin:0">
+        Com <strong>N pontos</strong>, existem <strong>(N−1)! / 2</strong> rotas possíveis.
+        Com 10 pontos são 181.440 combinações. Com 20 pontos são
+        60.822.550.204.416.000 combinações — impossível testar tudo.
+      </p>
+    </div>
+
+    <p>
+      Por isso o sistema usa <strong>heurísticas</strong> — algoritmos que encontram uma resposta
+      muito boa (mas não necessariamente perfeita) em milissegundos.
+    </p>
+
+    <table>
+      <thead>
+        <tr><th>Pontos</th><th>Combinações possíveis</th><th>Tempo (força bruta)</th><th>Heurística</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>5</td><td>12</td><td>instantâneo</td><td>instantâneo</td></tr>
+        <tr><td>10</td><td>181.440</td><td>&lt; 1 segundo</td><td>instantâneo</td></tr>
+        <tr><td>15</td><td>43 bilhões</td><td>horas</td><td>instantâneo</td></tr>
+        <tr><td>20</td><td>60 quatrilhões</td><td>anos</td><td><strong>&lt; 5ms</strong></td></tr>
+        <tr><td>50</td><td>astronomicamente grande</td><td>nunca</td><td><strong>&lt; 20ms</strong></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 1. Visão geral -->
+  <section>
+    <h2><span class="num">1</span> Visão Geral do Pipeline</h2>
+
+    <p>O sistema executa 4 etapas em sequência ao clicar em <strong>Otimizar Rota</strong>:</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-left"><div class="step-dot">1</div><div class="step-line"></div></div>
+        <div class="step-body">
+          <div class="step-title">Montar a Matriz de Distâncias por Estrada</div>
+          <div class="step-desc">Uma chamada à API OSRM retorna a distância real de asfalto entre todos os pares de pontos.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-left"><div class="step-dot">2</div><div class="step-line"></div></div>
+        <div class="step-body">
+          <div class="step-title">Nearest Neighbor — construir a rota inicial</div>
+          <div class="step-desc">Algoritmo ganancioso: sempre vai para o ponto mais próximo ainda não visitado.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-left"><div class="step-dot">3</div><div class="step-line"></div></div>
+        <div class="step-body">
+          <div class="step-title">2-Opt — refinar a rota</div>
+          <div class="step-desc">Testa trocas de arestas para eliminar cruzamentos e encurtar o percurso total.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-left"><div class="step-dot">4</div><div class="step-line"></div></div>
+        <div class="step-body">
+          <div class="step-title">Desenhar as Estradas Reais</div>
+          <div class="step-desc">Para cada trecho da rota otimizada, a OSRM retorna o caminho exato de asfalto e o sistema desenha no mapa.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Matriz de distâncias -->
+  <section>
+    <h2><span class="num">2</span> Etapa 1 — Matriz de Distâncias por Estrada</h2>
+
+    <p>
+      Antes de qualquer algoritmo, o sistema precisa saber quanto custa ir de cada ponto para cada outro ponto.
+      Esse custo é a <strong>distância real por estrada em metros</strong>.
+    </p>
+
+    <div class="box purple">
+      <div class="box-title">Por que não usar linha reta (Haversine)?</div>
+      <p style="margin:0">
+        A distância em linha reta ignora rios, montanhas, sentido das ruas, estradas federais e desvios.
+        SP → RJ em linha reta são ~360 km, mas pela estrada são ~430 km.
+        Otimizar com dados errados gera uma rota errada.
+      </p>
+    </div>
+
+    <h3>Como funciona — OSRM Table API</h3>
+    <p>
+      O sistema envia <strong>uma única chamada HTTP</strong> para o servidor OSRM
+      (Open Source Routing Machine, que usa dados do OpenStreetMap) passando todos os pontos de uma vez.
+      O servidor retorna uma tabela N×N com a distância e o tempo de viagem entre todos os pares.
+    </p>
+
+    <pre><span class="cm">// Exemplo: 3 pontos → 1 chamada → matriz 3×3</span>
+GET https://router.project-osrm.org/table/v1/driving/
+    <span class="nm">-46.63,-23.55</span>;   <span class="cm">// São Paulo</span>
+    <span class="nm">-43.17,-22.90</span>;   <span class="cm">// Rio de Janeiro</span>
+    <span class="nm">-43.93,-19.91</span>    <span class="cm">// Belo Horizonte</span>
+    ?annotations=distance,duration
+
+<span class="cm">// Resposta:</span>
+{
+  <span class="st">"distances"</span>: [
+    [<span class="nm">0</span>,      <span class="nm">431000</span>, <span class="nm">586000</span>],  <span class="cm">// de SP  para: SP, RJ, BH</span>
+    [<span class="nm">431000</span>, <span class="nm">0</span>,      <span class="nm">434000</span>],  <span class="cm">// de RJ  para: SP, RJ, BH</span>
+    [<span class="nm">586000</span>, <span class="nm">434000</span>, <span class="nm">0</span>     ]   <span class="cm">// de BH  para: SP, RJ, BH</span>
+  ],
+  <span class="st">"durations"</span>: [  <span class="cm">// segundos</span>
+    [<span class="nm">0</span>,     <span class="nm">20100</span>, <span class="nm">27300</span>],
+    [<span class="nm">20100</span>, <span class="nm">0</span>,     <span class="nm">20400</span>],
+    [<span class="nm">27300</span>, <span class="nm">20400</span>, <span class="nm">0</span>    ]
+  ]
+}</pre>
+
+    <p>
+      Com essa matriz em mãos, o algoritmo sabe exatamente o custo de qualquer trecho.
+      A partir daqui, trabalha só com números — rápido e sem mais chamadas de rede.
+    </p>
+
+    <div class="box green">
+      <div class="box-title">Eficiência</div>
+      <p style="margin:0">
+        Para N pontos: apenas <strong>1 chamada HTTP</strong> para obter N² distâncias.
+        Não importa se são 5 ou 50 pontos — continua sendo 1 chamada.
+      </p>
+    </div>
+  </section>
+
+  <!-- 3. Nearest Neighbor -->
+  <section>
+    <h2><span class="num">3</span> Etapa 2 — Nearest Neighbor (Vizinho Mais Próximo)</h2>
+
+    <p>
+      Com a matriz pronta, o sistema constrói a primeira versão da rota.
+      O algoritmo Nearest Neighbor é <strong>ganancioso</strong>: a cada passo, toma a melhor
+      decisão local — sem planejar o futuro.
+    </p>
+
+    <h3>Regra simples</h3>
+    <div class="box purple">
+      <div class="box-title">Lógica do algoritmo</div>
+      <p style="margin:0">
+        <strong>1.</strong> Começa no ponto P1.<br>
+        <strong>2.</strong> Olha para todos os pontos ainda não visitados.<br>
+        <strong>3.</strong> Vai para o mais próximo (menor distância na matriz).<br>
+        <strong>4.</strong> Marca esse ponto como visitado e repete o passo 2.<br>
+        <strong>5.</strong> Quando não sobrar nenhum ponto, volta para P1 fechando o circuito.
+      </p>
+    </div>
+
+    <h3>Exemplo visual com 5 pontos</h3>
+    <div class="algo-vis">
+Pontos: <span class="idx">A</span> <span class="idx">B</span> <span class="idx">C</span> <span class="idx">D</span> <span class="idx">E</span>
+Começa em: <span class="hl">A</span>   Não visitados: B C D E
+
+Passo 1 — De A, distâncias: B=120, C=340, D=80, E=210
+          <span class="arr">→</span> Escolhe <span class="ok">D</span> (80km, o mais próximo)
+
+Passo 2 — De D, distâncias: B=150, C=200, E=90
+          <span class="arr">→</span> Escolhe <span class="ok">E</span> (90km)
+
+Passo 3 — De E, distâncias: B=130, C=300
+          <span class="arr">→</span> Escolhe <span class="ok">B</span> (130km)
+
+Passo 4 — De B, distâncias: C=180
+          <span class="arr">→</span> Escolhe <span class="ok">C</span> (único restante)
+
+Fecha circuito: C <span class="arr">→</span> A (220km)
+
+Rota: A <span class="arr">→</span> D <span class="arr">→</span> E <span class="arr">→</span> B <span class="arr">→</span> C <span class="arr">→</span> A
+Total: 80 + 90 + 130 + 180 + 220 = <span class="ok">700 km</span>
+    </div>
+
+    <h3>O código em JavaScript</h3>
+    <pre><span class="kw">function</span> <span class="fn">nearestNeighbor</span>(pts, M) {
+  <span class="kw">const</span> n       = pts.length;
+  <span class="kw">const</span> visited = <span class="kw">new</span> Uint8Array(n);   <span class="cm">// 0 = não visitado</span>
+  <span class="kw">const</span> order   = [], steps = [];
+
+  <span class="kw">let</span> cur = <span class="nm">0</span>;          <span class="cm">// começa no ponto 0</span>
+  visited[<span class="nm">0</span>] = <span class="nm">1</span>;
+  order.push(<span class="nm">0</span>);
+
+  <span class="kw">for</span> (<span class="kw">let</span> s = <span class="nm">1</span>; s &lt; n; s++) {
+    <span class="kw">let</span> best = -<span class="nm">1</span>, bestDist = Infinity;
+    <span class="kw">const</span> searched = [];
+
+    <span class="cm">// Varre todos os não-visitados</span>
+    <span class="kw">for</span> (<span class="kw">let</span> j = <span class="nm">0</span>; j &lt; n; j++) {
+      <span class="kw">if</span> (!visited[j]) {
+        searched.push(j);
+        <span class="kw">if</span> (M[cur][j] &lt; bestDist) {    <span class="cm">// encontrou um mais próximo?</span>
+          bestDist = M[cur][j];
+          best = j;
+        }
+      }
+    }
+
+    steps.push({ from: cur, to: best, dist: bestDist, searched });
+    visited[best] = <span class="nm">1</span>;
+    order.push(best);
+    cur = best;
+  }
+
+  order.push(<span class="nm">0</span>);              <span class="cm">// fecha o circuito</span>
+  <span class="kw">return</span> { order, steps };
+}</pre>
+
+    <div class="box yellow">
+      <div class="box-title">Qualidade do resultado</div>
+      <p style="margin:0">
+        O Nearest Neighbor <strong>não garante</strong> a rota ótima. Como é ganancioso,
+        pode tomar uma decisão boa agora que cria um problema depois.
+        Em média, produz uma rota <strong>20–25% acima do ótimo</strong>.
+        É aí que o 2-Opt entra.
+      </p>
+    </div>
+  </section>
+
+  <!-- 4. 2-Opt -->
+  <section>
+    <h2><span class="num">4</span> Etapa 3 — 2-Opt (Refinamento)</h2>
+
+    <p>
+      O 2-Opt é um algoritmo de <strong>melhoria local</strong>. Ele pega a rota do Nearest Neighbor
+      e tenta encurtá-la trocando pares de arestas. Continua tentando até não encontrar mais nenhuma melhoria.
+    </p>
+
+    <h3>A ideia central: desfazer cruzamentos</h3>
+    <p>
+      Rotas com cruzamentos são sempre piores do que rotas sem cruzamentos.
+      O 2-Opt identifica esses cruzamentos e os desfaz invertendo o segmento entre eles.
+    </p>
+
+    <div class="compare">
+      <div class="box red">
+        <div class="box-title">Antes — rota com cruzamento</div>
+        <pre style="border:none;background:none;padding:0;color:#9ca3af">
+  A ────────── C
+   \          /
+    \        /
+     \      /
+      \    /
+       B──D
+        </pre>
+        <p style="margin:4px 0 0;font-size:.8rem">A→B→C→D: ineficiente</p>
+      </div>
+      <div class="box green">
+        <div class="box-title">Depois — sem cruzamento</div>
+        <pre style="border:none;background:none;padding:0;color:#9ca3af">
+  A ── B
+  |    |
+  |    |
+  D ── C
+        </pre>
+        <p style="margin:4px 0 0;font-size:.8rem">A→D→C→B: mais curto</p>
+      </div>
+    </div>
+
+    <h3>Como funciona o teste de troca</h3>
+    <p>
+      Para cada par de arestas (A→B) e (C→D), o algoritmo testa se seria melhor ter (A→C) e (B→D),
+      invertendo o segmento do meio. A conta é simples:
+    </p>
+
+    <div class="algo-vis">
+<span class="cm">// Situação atual:</span>
+Aresta 1: <span class="idx">A</span> <span class="arr">→</span> <span class="idx">B</span>  (custo: M[A][B])
+Aresta 2: <span class="idx">C</span> <span class="arr">→</span> <span class="idx">D</span>  (custo: M[C][D])
+Total atual = M[A][B] + M[C][D]
+
+<span class="cm">// Proposta de troca (inverte segmento B..C):</span>
+Nova aresta 1: <span class="idx">A</span> <span class="arr">→</span> <span class="idx">C</span>  (custo: M[A][C])
+Nova aresta 2: <span class="idx">B</span> <span class="arr">→</span> <span class="idx">D</span>  (custo: M[B][D])
+Total proposto = M[A][C] + M[B][D]
+
+<span class="cm">// Troca se:</span>
+<span class="kw">if</span> (M[A][C] + M[B][D] &lt; M[A][B] + M[C][D]) {
+    <span class="cm">// inverte o segmento entre B e C → MELHORA!</span>
+    <span class="ok">improved = true</span>
+}
+    </div>
+
+    <h3>O código em JavaScript</h3>
+    <pre><span class="kw">function</span> <span class="fn">twoOpt</span>(order, M) {
+  <span class="kw">let</span> route    = order.slice(<span class="nm">0</span>, -<span class="nm">1</span>);   <span class="cm">// remove duplicata do fim</span>
+  <span class="kw">const</span> n      = route.length;
+  <span class="kw">let</span> improved = <span class="kw">true</span>;
+
+  <span class="kw">while</span> (improved) {              <span class="cm">// continua até não melhorar mais</span>
+    improved = <span class="kw">false</span>;
+    <span class="kw">for</span> (<span class="kw">let</span> i = <span class="nm">0</span>; i &lt; n - <span class="nm">1</span>; i++) {
+      <span class="kw">for</span> (<span class="kw">let</span> j = i + <span class="nm">2</span>; j &lt; n; j++) {
+        <span class="kw">const</span> a = route[i], b = route[i+<span class="nm">1</span>];
+        <span class="kw">const</span> c = route[j], d = route[(j+<span class="nm">1</span>) % n];
+
+        <span class="kw">if</span> (M[a][c] + M[b][d] &lt; M[a][b] + M[c][d] - <span class="nm">1e-10</span>) {
+          <span class="cm">// Inverte o segmento entre i+1 e j</span>
+          <span class="kw">let</span> lo = i+<span class="nm">1</span>, hi = j;
+          <span class="kw">while</span> (lo &lt; hi) {
+            [route[lo], route[hi]] = [route[hi], route[lo]];
+            lo++; hi--;
+          }
+          improved = <span class="kw">true</span>;
+        }
+      }
+    }
+  }
+
+  route.push(route[<span class="nm">0</span>]);    <span class="cm">// fecha o circuito</span>
+  <span class="kw">return</span> route;
+}</pre>
+
+    <div class="box green">
+      <div class="box-title">Ganho típico do 2-Opt</div>
+      <p style="margin:0">
+        O 2-Opt consegue melhorar a rota do Nearest Neighbor em <strong>10–30%</strong> na maioria dos casos,
+        eliminando todos os cruzamentos óbvios. O algoritmo para quando nenhum par de trocas
+        produz melhoria — isso é chamado de <em>ótimo local</em>.
+      </p>
+    </div>
+  </section>
+
+  <!-- 5. Estradas reais -->
+  <section>
+    <h2><span class="num">5</span> Etapa 4 — Traçar as Estradas Reais</h2>
+
+    <p>
+      Até aqui o algoritmo definiu a <strong>ordem de visita</strong> ideal.
+      Agora o sistema precisa mostrar <strong>o caminho real pelo asfalto</strong> entre cada par de pontos consecutivos.
+    </p>
+
+    <h3>OSRM Route API</h3>
+    <p>
+      Para cada trecho da rota otimizada (ex: SP→BH), o sistema faz uma chamada à OSRM Route API
+      que retorna a geometria exata do caminho por estradas — todas as curvas, rotatórias e vias.
+    </p>
+
+    <pre><span class="cm">// Para cada par de pontos consecutivos na rota:</span>
+GET https://router.project-osrm.org/route/v1/driving/
+    <span class="nm">-46.63,-23.55</span>;   <span class="cm">// SP</span>
+    <span class="nm">-43.93,-19.91</span>    <span class="cm">// BH</span>
+    ?overview=full&amp;geometries=geojson
+
+<span class="cm">// Resposta:</span>
+{
+  <span class="st">"routes"</span>: [{
+    <span class="st">"distance"</span>: <span class="nm">586200</span>,     <span class="cm">// metros</span>
+    <span class="st">"duration"</span>: <span class="nm">27180</span>,      <span class="cm">// segundos</span>
+    <span class="st">"geometry"</span>: {
+      <span class="st">"coordinates"</span>: [       <span class="cm">// centenas de pontos do caminho</span>
+        [-<span class="nm">46.63</span>, -<span class="nm">23.55</span>],   <span class="cm">// [longitude, latitude]</span>
+        [-<span class="nm">46.62</span>, -<span class="nm">23.52</span>],
+        [-<span class="nm">46.58</span>, -<span class="nm">23.46</span>],
+        <span class="cm">// ... mais 300 pontos ...</span>
+        [-<span class="nm">43.93</span>, -<span class="nm">19.91</span>]
+      ]
+    }
+  }]
+}</pre>
+
+    <p>
+      O Leaflet.js recebe esses pontos e desenha a linha exata no mapa, seguindo cada curva da estrada.
+    </p>
+
+    <div class="box purple">
+      <div class="box-title">Otimização de velocidade: Promise.all</div>
+      <p style="margin:0">
+        Para N trechos, o sistema dispara <strong>todas as N chamadas ao mesmo tempo</strong> em paralelo
+        com <code>Promise.all</code>. Se forem 20 trechos e cada chamada demora 500ms,
+        o total é ~500ms — não 10 segundos como seria de forma sequencial.
+      </p>
+    </div>
+
+    <pre><span class="cm">// Todas as chamadas em paralelo</span>
+<span class="kw">const</span> fetches = optOrder.slice(<span class="nm">0</span>, -<span class="nm">1</span>).map((idx, i) =>
+  <span class="fn">fetchRoadPath</span>(pts[optOrder[i]], pts[optOrder[i+<span class="nm">1</span>]])
+);
+
+<span class="kw">const</span> paths = <span class="kw">await</span> Promise.all(fetches);  <span class="cm">// espera todas juntas</span>
+
+paths.forEach(path => {
+  L.polyline(path, { color: <span class="st">'#818cf8'</span>, weight: <span class="nm">4</span> }).addTo(map);
+});</pre>
+  </section>
+
+  <!-- 6. Resumo -->
+  <section>
+    <h2><span class="num">6</span> Resumo — Complexidade e Performance</h2>
+
+    <table>
+      <thead>
+        <tr><th>Etapa</th><th>Algoritmo</th><th>Complexidade</th><th>Tempo (20 pts)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Matriz de distâncias</strong></td>
+          <td>OSRM Table API</td>
+          <td>1 chamada HTTP</td>
+          <td>~400ms</td>
+        </tr>
+        <tr>
+          <td><strong>Rota inicial</strong></td>
+          <td>Nearest Neighbor</td>
+          <td>O(N²)</td>
+          <td>&lt; 1ms</td>
+        </tr>
+        <tr>
+          <td><strong>Refinamento</strong></td>
+          <td>2-Opt</td>
+          <td>O(N³) pior caso</td>
+          <td>~3ms</td>
+        </tr>
+        <tr>
+          <td><strong>Estradas reais</strong></td>
+          <td>OSRM Route API × N (paralelo)</td>
+          <td>N chamadas simultâneas</td>
+          <td>~600ms</td>
+        </tr>
+        <tr>
+          <td><strong>Total</strong></td>
+          <td>—</td>
+          <td>—</td>
+          <td><strong>~1–2 segundos</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="box green" style="margin-top:24px">
+      <div class="box-title">Qualidade da solução</div>
+      <p style="margin:0">
+        A combinação Nearest Neighbor + 2-Opt encontra rotas em média <strong>5–15% acima do ótimo teórico</strong>
+        para instâncias aleatórias. Na prática, com dados de estradas reais, o resultado é muito bom
+        e computacionalmente <strong>milhões de vezes mais rápido</strong> que a força bruta.
+      </p>
+    </div>
+  </section>
+
+  <!-- 7. Fluxo completo -->
+  <section>
+    <h2><span class="num">7</span> Fluxo Completo do Sistema</h2>
+
+    <div class="algo-vis" style="line-height:2.2">
+<span class="cm">[ Usuário digita endereços ]</span>
+        ↓
+<span class="fn">geocode()</span> — Nominatim converte endereço em lat/lng
+        ↓
+<span class="cm">[ Usuário clica "Otimizar Rota" ]</span>
+        ↓
+<span class="fn">buildRoadMatrix()</span> — OSRM Table → matriz N×N de distâncias (1 chamada)
+        ↓
+<span class="fn">nearestNeighbor()</span> — constrói rota inicial O(N²) &lt;1ms
+        ↓
+<span class="fn">twoOpt()</span> — melhora a rota O(N³) ~poucos ms
+        ↓
+<span class="fn">showResultPanel()</span> — exibe sequência + distâncias + tempo estimado
+        ↓
+<span class="fn">startAnimation()</span> — anima o algoritmo no mapa (opcional por velocidade)
+        ↓
+<span class="fn">drawRealRoads()</span> — Promise.all → N chamadas OSRM Route em paralelo
+        ↓
+<span class="ok">[ Rota desenhada no mapa com o asfalto real ]</span>
+    </div>
+  </section>
+
+  <footer>
+    Projeto desenvolvido com <strong>JavaScript</strong>, <strong>Leaflet.js</strong> e
+    <strong>OSRM</strong> (dados <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap</a>) •
+    Algoritmos: Nearest Neighbor + 2-Opt
+  </footer>
+
+</div>
+</body>
+</html>
