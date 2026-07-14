@@ -746,7 +746,13 @@ document.getElementById('btn-optimize').addEventListener('click', async () => {
   const twoOptResult = isLarge
     ? twoOptTimeLimited(nn.order, M, 2500)
     : twoOpt(nn.order, M);
-  const opt = isLarge ? twoOptResult : orOpt(twoOptResult.order, M);
+  const rawOpt = isLarge ? twoOptResult : orOpt(twoOptResult.order, M);
+
+  // Rotaciona o tour para sempre começar e terminar no P1 (índice 0)
+  const p1pos  = rawOpt.order.indexOf(0);
+  const rotated = p1pos === 0 ? rawOpt.order
+    : [...rawOpt.order.slice(p1pos, -1), ...rawOpt.order.slice(0, p1pos), 0];
+  const opt = { ...rawOpt, order: rotated };
 
   // Duração total da rota otimizada
   let totalDuration = 0;
