@@ -247,14 +247,44 @@
       background: #1e2d50; color: #818cf8; border: 1px solid #818cf8;
     }
     .map-crosshair, .map-crosshair .leaflet-grab { cursor: crosshair !important; }
+
+    .search-wrap { position: relative; }
+    .addr-suggestions {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 2000;
+      background: #13162a; border: 1px solid #2d3260; border-top: none;
+      border-radius: 0 0 8px 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+      max-height: 220px; overflow-y: auto;
+    }
+    .addr-suggestions:empty { display: none; }
+    .suggestion-item {
+      padding: 8px 12px; cursor: pointer; font-size: .8rem;
+      color: #9ca3af; border-bottom: 1px solid #1e2240;
+      display: flex; flex-direction: column; gap: 1px;
+      transition: background .1s;
+    }
+    .suggestion-item:last-child { border-bottom: none; }
+    .suggestion-item:hover, .suggestion-item.active {
+      background: #1e2240; color: #dde1f0;
+    }
+    .suggestion-item strong { color: #c7d2fe; font-size: .82rem; }
+    .suggestion-item span   { font-size: .7rem; color: #4b5563; }
+
+    .btn svg { vertical-align: middle; margin-right: 6px; }
+    .btn-icon svg { vertical-align: middle; }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>⬡ Otimizador de Rotas</h1>
+  <h1>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px">
+      <circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/>
+      <path d="M6 17V9a4 4 0 0 1 4-4h1"/><path d="M18 7v8a4 4 0 0 1-4 4h-1"/>
+    </svg>Otimizador de Rotas
+  </h1>
   <span class="sub">Rotas reais por estrada • OpenStreetMap + OSRM</span>
-  <span class="badge-algo">NN + 2-Opt • Distâncias reais</span>
+  <span class="badge-algo">NN + 2-Opt + Or-Opt</span>
 </header>
 
 <div class="main">
@@ -262,9 +292,14 @@
 
     <div class="section">
       <div class="section-title">Buscar Endereço</div>
-      <div class="search-row">
-        <input type="text" id="addr-input" placeholder="Ex: Av. Paulista, 1000, São Paulo" autocomplete="off">
-        <button class="btn-icon btn-add" id="btn-add" title="Adicionar">+</button>
+      <div class="search-wrap">
+        <div class="search-row">
+          <input type="text" id="addr-input" placeholder="Ex: Av. Paulista, 1000, São Paulo" autocomplete="off">
+          <button class="btn-icon btn-add" id="btn-add" title="Adicionar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <div id="addr-suggestions" class="addr-suggestions"></div>
       </div>
     </div>
 
@@ -274,10 +309,18 @@
       <div class="section-title" style="margin-bottom:8px">
         Pontos: <span id="count">0</span>
       </div>
-      <button class="btn btn-primary" id="btn-optimize" disabled>▶ Otimizar Rota</button>
-      <button class="btn btn-ghost"   id="btn-demo">Demo 6 cidades BR</button>
-      <button class="btn btn-ghost"   id="btn-demo20">Demo 20 cidades BR</button>
-      <button class="btn btn-ghost"   id="btn-click-add">📍 Clique no mapa para adicionar</button>
+      <button class="btn btn-primary" id="btn-optimize" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:5px"><polygon points="5 3 19 12 5 21 5 3"/></svg>Otimizar Rota
+      </button>
+      <button class="btn btn-ghost" id="btn-demo">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:5px"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>Demo 6 cidades
+      </button>
+      <button class="btn btn-ghost" id="btn-demo20">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="vertical-align:middle;margin-right:5px"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>Demo 20 cidades
+      </button>
+      <button class="btn btn-ghost" id="btn-click-add">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:5px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>Clique no mapa para adicionar
+      </button>
       <div class="section-title" style="margin-top:10px;margin-bottom:6px">Teste de Escala</div>
       <button class="btn btn-ghost"   id="btn-300s">300 pts — Curta <small>(&lt;25 km)</small></button>
       <button class="btn btn-ghost"   id="btn-300m">300 pts — Média <small>(&lt;350 km)</small></button>
@@ -343,7 +386,7 @@ const MapSearchControl = L.Control.extend({
   onAdd() {
     const div = L.DomUtil.create('div', 'map-search-control');
     div.innerHTML = `<input id="map-search-input" type="text" placeholder="Buscar local no mapa…" autocomplete="off">
-      <button id="map-search-btn" title="Buscar">🔍</button>`;
+      <button id="map-search-btn" title="Buscar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>`;
     L.DomEvent.disableClickPropagation(div);
     L.DomEvent.disableScrollPropagation(div);
     return div;
@@ -1089,13 +1132,23 @@ async function mapSearch() {
 // ─────────────────────────────────────────────────────
 let clickToAdd = false;
 
+const SVG_PIN = `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:5px"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
+const SVG_X   = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:middle;margin-right:5px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+
 function setClickToAdd(active) {
   clickToAdd = active;
   const btn = document.getElementById('btn-click-add');
   btn.classList.toggle('active', active);
-  btn.textContent = active ? '✕ Cancelar adição no mapa' : '📍 Clique no mapa para adicionar';
+  btn.innerHTML = active
+    ? SVG_X   + 'Cancelar adição no mapa'
+    : SVG_PIN + 'Clique no mapa para adicionar';
   map.getContainer().classList.toggle('map-crosshair', active);
 }
+
+// Clique direito sai do modo de adição e deixa navegar normalmente
+map.on('contextmenu', e => {
+  if (clickToAdd) { L.DomEvent.stopPropagation(e); setClickToAdd(false); }
+});
 
 async function reverseGeocode(lat, lng) {
   const res  = await fetch(
@@ -1141,11 +1194,87 @@ map.on('click', async e => {
 // ─────────────────────────────────────────────────────
 //  EVENTS
 // ─────────────────────────────────────────────────────
-document.getElementById('btn-add').addEventListener('click', () =>
-  addPointByAddress(document.getElementById('addr-input').value));
+// ─── AUTOCOMPLETE ────────────────────────────────────
+let suggestionResults = [], suggestionActive = -1, debounceTimer = null;
 
-document.getElementById('addr-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') addPointByAddress(e.target.value);
+const addrInput = document.getElementById('addr-input');
+const suggBox   = document.getElementById('addr-suggestions');
+
+function hideSuggestions() {
+  suggBox.innerHTML = '';
+  suggestionResults = [];
+  suggestionActive  = -1;
+}
+
+function renderSuggestions(results) {
+  suggestionResults = results;
+  suggestionActive  = -1;
+  suggBox.innerHTML = results.map((r, i) => {
+    const main = r.display_name.split(',')[0].trim();
+    const rest = r.display_name.split(',').slice(1, 3).join(',').trim();
+    return `<div class="suggestion-item" data-i="${i}">
+      <strong>${main}</strong><span>${rest}</span>
+    </div>`;
+  }).join('');
+  suggBox.querySelectorAll('.suggestion-item').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const r = suggestionResults[+el.dataset.i];
+      addrInput.value = r.display_name.split(',')[0].trim() + ', ' + r.display_name.split(',').slice(1,3).join(',');
+      hideSuggestions();
+      addPointByAddress(addrInput.value);
+    });
+  });
+}
+
+addrInput.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  const q = addrInput.value.trim();
+  if (q.length < 3) { hideSuggestions(); return; }
+  debounceTimer = setTimeout(async () => {
+    try {
+      const res  = await fetch(
+        'https://nominatim.openstreetmap.org/search?format=json&limit=5&q=' + encodeURIComponent(q),
+        { headers: { 'Accept-Language': 'pt-BR,pt;q=0.9' } }
+      );
+      const data = await res.json();
+      if (addrInput.value.trim() === q) renderSuggestions(data);
+    } catch {}
+  }, 300);
+});
+
+addrInput.addEventListener('keydown', e => {
+  const items = suggBox.querySelectorAll('.suggestion-item');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    suggestionActive = Math.min(suggestionActive + 1, items.length - 1);
+    items.forEach((el, i) => el.classList.toggle('active', i === suggestionActive));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    suggestionActive = Math.max(suggestionActive - 1, -1);
+    items.forEach((el, i) => el.classList.toggle('active', i === suggestionActive));
+  } else if (e.key === 'Enter') {
+    if (suggestionActive >= 0 && suggestionResults[suggestionActive]) {
+      const r = suggestionResults[suggestionActive];
+      addrInput.value = r.display_name.split(',')[0].trim() + ', ' + r.display_name.split(',').slice(1,3).join(',');
+      hideSuggestions();
+      addPointByAddress(addrInput.value);
+    } else {
+      hideSuggestions();
+      addPointByAddress(addrInput.value);
+    }
+  } else if (e.key === 'Escape') {
+    hideSuggestions();
+  }
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-wrap')) hideSuggestions();
+});
+
+document.getElementById('btn-add').addEventListener('click', () => {
+  hideSuggestions();
+  addPointByAddress(addrInput.value);
 });
 
 document.getElementById('btn-click-add').addEventListener('click',
