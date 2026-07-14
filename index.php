@@ -472,15 +472,15 @@ function fmtTime(s) {
 }
 
 // ─────────────────────────────────────────────────────
-//  NEAREST NEIGHBOR
+//  NEAREST NEIGHBOR (multi-start)
 // ─────────────────────────────────────────────────────
-function nearestNeighbor(pts, M) {
+function nearestNeighborFrom(pts, M, start) {
   const n       = pts.length;
   const visited = new Uint8Array(n);
   const order   = [], steps = [];
-  let cur = 0;
-  visited[0] = 1;
-  order.push(0);
+  let cur = start;
+  visited[start] = 1;
+  order.push(start);
 
   for (let s = 1; s < n; s++) {
     let best = -1, bestDist = Infinity;
@@ -496,9 +496,24 @@ function nearestNeighbor(pts, M) {
     order.push(best);
     cur = best;
   }
-  steps.push({ from: cur, to: 0, dist: M[cur][0], searched: [] });
-  order.push(0);
+  steps.push({ from: cur, to: start, dist: M[cur][start], searched: [] });
+  order.push(start);
   return { order, steps, distance: steps.reduce((s, t) => s + t.dist, 0) };
+}
+
+function nearestNeighbor(pts, M) {
+  const n = pts.length;
+  // Para conjuntos grandes limita a 10 starts aleatórios para não travar o browser
+  const starts = n > 50
+    ? Array.from({ length: 10 }, () => Math.floor(Math.random() * n))
+    : Array.from({ length: n }, (_, i) => i);
+
+  let best = null;
+  for (const start of starts) {
+    const candidate = nearestNeighborFrom(pts, M, start);
+    if (!best || candidate.distance < best.distance) best = candidate;
+  }
+  return best;
 }
 
 // ─────────────────────────────────────────────────────
